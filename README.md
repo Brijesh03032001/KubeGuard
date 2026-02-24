@@ -6,6 +6,7 @@
 
 [![Node.js](https://img.shields.io/badge/Node.js-20+-339933?style=flat&logo=node.js&logoColor=white)](https://nodejs.org/)
 [![Python](https://img.shields.io/badge/Python-3.10+-3776AB?style=flat&logo=python&logoColor=white)](https://python.org/)
+[![Go](https://img.shields.io/badge/Go-1.22+-00ADD8?style=flat&logo=go&logoColor=white)](https://golang.org/)
 [![Kubernetes](https://img.shields.io/badge/Kubernetes-API-326CE5?style=flat&logo=kubernetes&logoColor=white)](https://kubernetes.io/)
 [![Prometheus](https://img.shields.io/badge/Prometheus-Metrics-E6522C?style=flat&logo=prometheus&logoColor=white)](https://prometheus.io/)
 [![TensorFlow](https://img.shields.io/badge/TensorFlow-LSTM-FF6F00?style=flat&logo=tensorflow&logoColor=white)](https://tensorflow.org/)
@@ -31,13 +32,17 @@ Traditional Kubernetes monitoring tools alert you *after* a problem occurs. Kube
 │  │  Prometheus  │───▶│  Node.js     │───▶│  Python ML Engine │  │
 │  │  (Metrics)   │    │  Orchestrator│    │  (LSTM + LightGBM)│  │
 │  └──────────────┘    └──────┬───────┘    └────────┬──────────┘  │
-│                             │                     │             │
-│  ┌──────────────┐           │            Anomaly? │             │
-│  │  Kubernetes  │◀──────────┘                     ▼             │
-│  │  API Server  │                     ┌───────────────────────┐ │
-│  └──────────────┘                     │  Gemini 1.5 Pro (LLM) │ │
-│                                       │  kubectl fix command  │ │
-│                                       └───────────────────────┘ │
+│           ▲                 │                     │             │
+│           │        POST     │            Anomaly? │             │
+│  ┌────────┴───────┐         │                     ▼             │
+│  │  Go Prometheus │◀────────┘         ┌───────────────────────┐ │
+│  │  Exporter      │  /report          │  Gemini 1.5 Pro (LLM) │ │
+│  │  /metrics      │                   │  kubectl fix command  │ │
+│  └────────────────┘                   └───────────────────────┘ │
+│  ┌──────────────┐                                               │
+│  │  Kubernetes  │◀── HPA can scale based on custom metrics      │
+│  │  API Server  │                                               │
+│  └──────────────┘                                               │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -48,8 +53,9 @@ Traditional Kubernetes monitoring tools alert you *after* a problem occurs. Kube
 3. **Sliding Window** — Maintains a rolling window of 10 data points fed as a time-series sequence
 4. **ML Prediction** — The Node.js process streams the window to a Python subprocess via `stdin`; the LSTM model forecasts the next memory value
 5. **Anomaly Classification** — The predicted value is passed to a LightGBM classifier to determine if it's anomalous
-6. **LLM Remediation** — If an anomaly is detected, the agent queries **Gemini 1.5 Pro** with full pod context and gets a targeted `kubectl` fix command
-7. **Critical Triage** — If the pod is already in `CrashLoopBackOff`, the agent escalates to a cluster administrator alert instead of auto-remediating
+6. **Metrics Export** — Every prediction (healthy or anomalous) is POSTed to the **Go Prometheus Exporter** which exposes custom metrics on `/metrics` for Prometheus to scrape
+7. **LLM Remediation** — If an anomaly is detected, the agent queries **Gemini 1.5 Pro** with full pod context and gets a targeted `kubectl` fix command
+8. **Critical Triage** — If the pod is already in `CrashLoopBackOff`, the agent escalates to a cluster administrator alert instead of auto-remediating
 
 ---
 
@@ -73,9 +79,12 @@ The **hybrid approach** separates concerns: LSTM captures temporal patterns in m
 | **Orchestration** | Node.js (ESM), Express |
 | **Kubernetes Integration** | Kubernetes REST API (`kubectl proxy`) |
 | **Metrics** | Prometheus + PromQL |
+| **Custom Metrics Exporter** | Go 1.22, Prometheus `client_golang` SDK |
 | **ML Inference** | TensorFlow/Keras (LSTM), LightGBM, NumPy |
 | **LLM Integration** | LangChain + Google Gemini 1.5 Pro |
 | **IPC** | Node.js `child_process` → Python subprocess via `stdin/stdout` |
+| **Containerization** | Docker (multi-stage build) |
+| **Deployment** | Kubernetes Deployment + Service YAML |
 
 ---
 
@@ -83,14 +92,60 @@ The **hybrid approach** separates concerns: LSTM captures temporal patterns in m
 
 ```
 KubeGuard/
-├── index.js                  # Main agent: metrics collection, orchestration, LLM integration
-├── hybrid_predict.py         # ML inference engine: LSTM + LightGBM anomaly detection
-├── hybrid_lstm_model.keras   # Pre-trained LSTM model (TensorFlow/Keras)
-├── hybrid_lstm_model.h5      # LSTM model (HDF5 format)
-├── lightgbm_anomaly.pkl      # Trained LightGBM anomaly classifier
-├── exp.js                    # Utility: K8s API exploration script
-└── package.json              # Node.js dependencies
+├── index.js                        # Main agent: metrics collection, orchestration, LLM integration
+├── hybrid_predict.py               # ML inference engine: LSTM + LightGBM anomaly detection
+├── hybrid_lstm_model.keras         # Pre-trained LSTM model (TensorFlow/Keras)
+├── hybrid_lstm_model.h5            # LSTM model (HDF5 format)
+├── lightgbm_anomaly.pkl            # Trained LightGBM anomaly classifier
+├── exp.js                          # Utility: K8s API exploration script
+├── package.json                    # Node.js dependencies
+└── kubeguard-exporter/             # Go Prometheus custom metrics exporter
+    ├── main.go                     # HTTP server exposing /report and /metrics
+    ├── go.mod                      # Go module definition
+    ├── Dockerfile                  # Multi-stage Docker build
+    └── k8s/
+        └── exporter-deployment.yaml  # Kubernetes Deployment + Service
 ```
+
+---
+
+## Go Prometheus Exporter (`kubeguard-exporter`)
+
+A purpose-built Go microservice that acts as the **metrics bridge** between the KubeGuard agent and Prometheus.
+
+### Exposed Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `POST /report` | POST | Receives JSON predictions from the Node.js agent |
+| `GET /metrics` | GET | Prometheus scrape endpoint with custom metrics |
+| `GET /healthz` | GET | Liveness/readiness health check |
+
+### Custom Prometheus Metrics
+
+| Metric | Type | Description |
+|--------|------|-------------|
+| `kubeguard_predicted_memory_ratio` | Gauge | LSTM-forecasted memory usage (0–1, per pod label) |
+| `kubeguard_anomaly_detected` | Gauge | 1 = anomaly active, 0 = healthy (per pod label) |
+| `kubeguard_anomalies_total` | Counter | Cumulative anomaly count since exporter start |
+
+### Deploy the Exporter
+
+```bash
+# Build the Docker image
+cd kubeguard-exporter
+docker build -t kubeguard-exporter:latest .
+
+# Deploy to Kubernetes
+kubectl apply -f k8s/exporter-deployment.yaml
+
+# Verify it's running
+kubectl get pods -l app=kubeguard-exporter
+```
+
+### HPA Integration (Horizontal Pod Autoscaler)
+
+Since KubeGuard exposes `kubeguard_predicted_memory_ratio` as a real Prometheus metric, Kubernetes HPA can use it via the [Prometheus Adapter](https://github.com/kubernetes-sigs/prometheus-adapter) to **auto-scale workloads** based on predicted memory — closing the full AIOps loop.
 
 ---
 
@@ -176,6 +231,7 @@ KubeGuard will begin collecting metrics. After 10 seconds of warm-up, ML predict
 ## Key Engineering Decisions
 
 - **Subprocess IPC over REST** — The Python ML engine runs as a persistent subprocess rather than a separate microservice, eliminating HTTP overhead for high-frequency (1 Hz) inference
+- **Go for the metrics layer** — The exporter is written in Go using the official `prometheus/client_golang` SDK — the same stack used by production K8s operators — keeping the scrape path lightweight and idiomatic
 - **Normalized memory inputs** — Memory is normalized against each pod's individual limit, making the model portable across pods with different memory configurations
 - **LLM-as-last-resort** — The LLM is only invoked on confirmed anomalies, keeping API costs minimal while providing intelligent, context-aware remediation
 - **CrashLoopBackOff triage** — Distinguishes between recoverable anomalies (auto-fix) and critical failures (human escalation), avoiding dangerous automated actions on already-failing pods

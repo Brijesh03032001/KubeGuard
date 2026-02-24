@@ -107,6 +107,17 @@ setTimeout(() => {
                 console.log(`Predicted Memory js: ${predictedMemory}`);
                 console.log(`Is Anomaly js: ${isAnomaly}`);
 
+                // Push metrics to the Go Prometheus exporter
+                try {
+                    await axios.post("http://kubeguard-exporter:8080/report", {
+                        podName,
+                        predictedMemory: parseFloat(predictedMemory),
+                        isAnomaly: parseInt(isAnomaly),
+                    });
+                } catch (e) {
+                    console.warn(`[Exporter] Could not push metrics: ${e.message}`);
+                }
+
                 if ( typeof isAnamoly!=="undefined" && isAnamoly == 1 ) {
                     const critical = await isPodCrashLooping(podName);
 
