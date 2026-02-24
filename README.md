@@ -1,5 +1,7 @@
 # 🛡️ KubeGuard — Autonomous Kubernetes AI Monitoring Agent
 
+![KubeGuard Banner](./banner.png)
+
 > **Real-time pod anomaly detection and LLM-powered self-healing for Kubernetes workloads.**
 
 [![Node.js](https://img.shields.io/badge/Node.js-20+-339933?style=flat&logo=node.js&logoColor=white)](https://nodejs.org/)
