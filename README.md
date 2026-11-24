@@ -4,13 +4,13 @@
 
 > **Predict pod memory anomalies before they become OOMKills — then let an LLM write the fix.**
 
-[![Node.js](https://img.shields.io/badge/Node.js-20+-339933?style=flat&logo=node.js&logoColor=white)](https://nodejs.org/)
-[![Python](https://img.shields.io/badge/Python-3.10+-3776AB?style=flat&logo=python&logoColor=white)](https://python.org/)
-[![Go](https://img.shields.io/badge/Go-1.22-00ADD8?style=flat&logo=go&logoColor=white)](https://golang.org/)
-[![Kubernetes](https://img.shields.io/badge/Kubernetes-HPA-326CE5?style=flat&logo=kubernetes&logoColor=white)](https://kubernetes.io/)
-[![Prometheus](https://img.shields.io/badge/Prometheus-Metrics-E6522C?style=flat&logo=prometheus&logoColor=white)](https://prometheus.io/)
-[![TensorFlow](https://img.shields.io/badge/TensorFlow-LSTM-FF6F00?style=flat&logo=tensorflow&logoColor=white)](https://tensorflow.org/)
-[![LightGBM](https://img.shields.io/badge/LightGBM-classifier-02569B?style=flat)](https://lightgbm.readthedocs.io)
+[![Node.js](https://img.shields.io/badge/Node.js-2E7D32?style=for-the-badge&logo=nodedotjs&logoColor=white)](https://nodejs.org/)
+[![Python](https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://python.org/)
+[![Go 1.22](https://img.shields.io/badge/Go_1.22-007D9C?style=for-the-badge&logo=go&logoColor=white)](https://golang.org/)
+[![Kubernetes](https://img.shields.io/badge/Kubernetes-326CE5?style=for-the-badge&logo=kubernetes&logoColor=white)](https://kubernetes.io/)
+[![Prometheus](https://img.shields.io/badge/Prometheus-C1431F?style=for-the-badge&logo=prometheus&logoColor=white)](https://prometheus.io/)
+[![TensorFlow](https://img.shields.io/badge/TensorFlow-C25600?style=for-the-badge&logo=tensorflow&logoColor=white)](https://tensorflow.org/)
+[![Gemini 1.5 Pro](https://img.shields.io/badge/Gemini_1.5_Pro-6B4FA0?style=for-the-badge&logo=googlegemini&logoColor=white)](https://ai.google.dev/)
 
 ---
 
